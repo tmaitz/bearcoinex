@@ -1,17 +1,17 @@
 import React, {useEffect, useState} from 'react';
-import useWebSocket, {ReadyState} from 'react-use-websocket'
+import {useStompClient, useSubscription} from 'react-stomp-hooks';
 import {Button, Divider, Input, List, Typography} from "antd";
 
 const Chat = () => {
   const [message, setMessage] = useState([])
   const [messages, setMessages] = useState([])
-  const {sendMessage, lastMessage, readyState} = useWebSocket("ws://localhost:8080/ws-chat");
 
-  useEffect(() => {
-    if (lastMessage !== null) {
-      setMessages((prev) => prev.concat(JSON.parse(lastMessage.data)).slice(-100));
-    }
-  }, [lastMessage]);
+  useSubscription("/topic/chat", (message) => {
+    setMessages((prev) => prev.concat(JSON.parse(message.body)).slice(-100));
+  });
+
+  const stompClient = useStompClient();
+
   return (
     <div>
       <Typography.Title>
@@ -19,11 +19,23 @@ const Chat = () => {
       </Typography.Title>
       <div>
         <Input style={{width: 500}} placeholder={"Напишите что-нибудь тут..."} onChange={v => setMessage(v.target.value)}/>
-        <Button type="primary" onClick={event => sendMessage(message)}>Отправить</Button>
+        <Button type="primary" onClick={event => {
+          if (stompClient) {
+            //Send Message
+            stompClient.publish({
+              destination: "/app/message",
+              body: JSON.stringify({
+                author: "UI",
+                text: message
+              }),
+            });
+          } else {
+            //Handle error
+          }
+        }}>Отправить</Button>
       </div>
       <Divider />
       <List
-        loading={readyState !== ReadyState.OPEN}
         itemLayout="horizontal"
         dataSource={messages}
         renderItem={(item) => (
